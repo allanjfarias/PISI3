@@ -80,3 +80,19 @@ with st.expander("Distribuição de Duração das Músicas"):
                        labels={"Length": "Duração (segundos)"}, color_discrete_sequence=["#636EFA"])
     fig.update_layout(bargap=0.1, xaxis_title="Duração (segundos)", yaxis_title="Quantidade")
     st.plotly_chart(fig)
+
+with st.expander("Top 10 Artistas Mais Populares (Média de Popularidade)"):
+    top_artistas_pop = df.groupby('Artist(s)')['Popularity'].mean(
+    ).sort_values(ascending=False).head(10).reset_index()
+    fig = px.bar(top_artistas_pop, x='Artist(s)', y='Popularity', color='Popularity',
+                 title="Top 10 Artistas com Maior Popularidade Média",
+                 labels={'Artist(s)': 'Artista', 'Popularity': 'Popularidade Média'})
+    st.plotly_chart(fig)
+
+with st.expander("Danceability por Gênero (Boxplot)"):
+    df_genres = df[df['Genre'].isin(
+        df['Genre'].value_counts().head(8).index)]  # Top 8 gêneros
+    fig = px.box(df_genres, x='Genre', y='Danceability', color='Genre',
+                 title="Distribuição de Danceability por Gênero",
+                 labels={'Genre': 'Gênero', 'Danceability': 'Danceabilidade'})
+    st.plotly_chart(fig)
