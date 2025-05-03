@@ -96,3 +96,15 @@ with st.expander("Danceability por Gênero (Boxplot)"):
                  title="Distribuição de Danceability por Gênero",
                  labels={'Genre': 'Gênero', 'Danceability': 'Danceabilidade'})
     st.plotly_chart(fig)
+
+with st.expander("Histograma do Tempo (BPM)"):
+    st.subheader("Histograma do Tempo (BPM)")
+    fig = px.histogram(df, x="Tempo", nbins=50,
+                        title="Distribuição de Batimentos por Minuto (Tempo)")
+    st.plotly_chart(fig)
+
+with st.expander("Gráfico de Barras dos Gêneros Mais Comuns"):
+    st.subheader("Gráfico de Barras dos Gêneros Mais Comuns")
+    fig = px.bar(df['Genre'].value_counts().head(
+        10), title="Top 10 Gêneros Mais Comuns", labels={'index': 'Gênero', 'value': 'Quantidade'})
+    st.plotly_chart(fig)
