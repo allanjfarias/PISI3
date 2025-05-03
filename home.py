@@ -47,3 +47,20 @@ with st.expander("Quantidade de músicas explícitas"):
 with st.expander("Distribuição da Popularidade"):
     st.write("Distribuição da Popularidade:")
     st.plotly_chart(px.histogram(df, x="Popularity", nbins=50))
+#
+# Gráficos de Márcia
+#
+
+# Top artistas com mais músicas
+with st.expander("Artistas com mais músicas"):
+    st.write("Top 5 artistas com mais músicas:")
+    top_artistas = df['Artist(s)'].value_counts().nlargest(5).reset_index()
+    top_artistas.columns = ['Artista', 'Qtd. de Músicas']
+    st.plotly_chart(px.bar(top_artistas, x="Artista",
+                    y="Qtd. de Músicas", color="Artista"))
+
+# Energy x Danceability
+with st.expander("Energy x Danceability"):
+    st.write("Correlação entre Energy e Danceability:")
+    st.plotly_chart(px.scatter(df, x="Energy", y="Danceability",
+                    color="Popularity", title="Energy x Danceability"))
