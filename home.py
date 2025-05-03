@@ -71,3 +71,12 @@ with st.expander("Popularidade vs Positiveness"):
                      title="Popularidade vs Positiveness", opacity=0.6,
                      labels={"Positiveness": "Positividade", "Popularity": "Popularidade"})
     st.plotly_chart(fig)
+
+
+with st.expander("Distribuição de Duração das Músicas"):
+    st.subheader("Distribuição do Comprimento das Músicas (Length)")
+    df_sorted = df.sort_values(by="Length")  # Ordenar o DataFrame pela coluna "Length"
+    fig = px.histogram(df_sorted, x="Length", nbins=50, title="Distribuição do Comprimento das Músicas",
+                       labels={"Length": "Duração (segundos)"}, color_discrete_sequence=["#636EFA"])
+    fig.update_layout(bargap=0.1, xaxis_title="Duração (segundos)", yaxis_title="Quantidade")
+    st.plotly_chart(fig)
