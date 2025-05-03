@@ -64,3 +64,10 @@ with st.expander("Energy x Danceability"):
     st.write("Correlação entre Energy e Danceability:")
     st.plotly_chart(px.scatter(df, x="Energy", y="Danceability",
                     color="Popularity", title="Energy x Danceability"))
+ 
+    
+with st.expander("Popularidade vs Positiveness"):
+    fig = px.scatter(df, x="Positiveness", y="Popularity", color="Explicit",
+                     title="Popularidade vs Positiveness", opacity=0.6,
+                     labels={"Positiveness": "Positividade", "Popularity": "Popularidade"})
+    st.plotly_chart(fig)
