@@ -77,3 +77,40 @@ with st.expander('Histogramas para atributos musicais'):
                            labels={feature: feature.capitalize()},
                            color_discrete_sequence=['skyblue'])
         st.plotly_chart(fig)
+
+with st.expander("Gêneros Mais Populares"):
+    st.write("Este gráfico mostra os gêneros musicais mais populares com base na média de popularidade.")
+
+    genero_popularidade = df.groupby('track_genre')['popularity'].mean().reset_index()
+
+    genero_popularidade = genero_popularidade.sort_values(by='popularity', ascending=False)
+
+    fig = px.bar(genero_popularidade.head(10),  
+                 x='track_genre', 
+                 y='popularity', 
+                 title="Top 10 Gêneros Mais Populares",
+                 labels={'track_genre': 'Gênero Musical', 'popularity': 'Popularidade Média'},
+                 color='popularity',
+                 color_continuous_scale='viridis')
+
+    st.plotly_chart(fig)
+
+with st.expander("Gênero com Mais Músicas no Top 0,001% Mais Populares"):
+    st.write("Este gráfico mostra qual gênero tem o maior número de músicas no top 0,001% das músicas mais populares.")
+
+    limite_top = df['popularity'].quantile(0.999)
+
+    top_musicas = df[df['popularity'] >= limite_top]
+
+    genero_top = top_musicas['track_genre'].value_counts().reset_index()
+    genero_top.columns = ['track_genre', 'count']
+
+    fig = px.bar(genero_top, 
+                 x='count', 
+                 y='track_genre', 
+                 title="Gêneros com Mais Músicas no Top 0,001% Mais Populares",
+                 labels={'track_genre': 'Gênero Musical', 'count': 'Número de Músicas'},
+                 color='count',
+                 color_continuous_scale='plasma')
+
+    st.plotly_chart(fig)
