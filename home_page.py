@@ -13,7 +13,7 @@ st.title("🎓 Dashboard - Grupo03")
 st.markdown("""
 Esta aplicação contém informações sobre o processo de **Data Science** e **Machine Learning** que serão aplicados ao dataset:
 
-🎧 **900K+ Spotify Songs with Lyrics, Emotions & More**
+🎹 Spotify Tracks Dataset
 """)
 
 st.subheader("📄 Etapas do Projeto")
