@@ -132,3 +132,21 @@ with st.expander("Músicas Mais Populares"):
                  height=600)
 
     st.plotly_chart(fig)
+
+with st.expander("Dispersão: Popularidade vs. Duração"):
+    st.write("Este gráfico mostra a relação entre popularidade e a duração (em ms) das 100 músicas mais populares.")
+
+    top100_musicas = df.sort_values(by='popularity', ascending=False).drop_duplicates(subset='track_name').head(100)
+
+    fig = px.scatter(
+        top100_musicas,
+        x='duration_ms',
+        y='popularity',
+        hover_data='track_name',
+        labels={'duration_ms': 'Duração (ms)', 'popularity': 'Popularidade'},
+        title='Relação entre Popularidade e Duração das 100 Músicas Mais Populares',
+        color='popularity',
+        color_continuous_scale='viridis'
+    )
+
+    st.plotly_chart(fig)
