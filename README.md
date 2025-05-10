@@ -44,5 +44,5 @@ pip install -r requirements.txt
 - Execute o projeto
 
 ```bash
-streamlit run home.py
+streamlit run home_page.py
 ```
