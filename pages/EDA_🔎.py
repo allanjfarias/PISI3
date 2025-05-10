@@ -114,3 +114,21 @@ with st.expander("Gênero com Mais Músicas no Top 0,001% Mais Populares"):
                  color_continuous_scale='plasma')
 
     st.plotly_chart(fig)
+
+with st.expander("Músicas Mais Populares"):
+    st.write("Este gráfico mostra as músicas mais populares, com base na pontuação de popularidade.")
+
+    top_tracks = df.sort_values(by='popularity', ascending=False).drop_duplicates(subset='track_name').head(20)
+    top_tracks['musica_artista'] = top_tracks['track_name'] + ' - ' + top_tracks['artists']
+
+    fig = px.bar(top_tracks.sort_values(by='popularity'),
+                 x='popularity',
+                 y='musica_artista',
+                 orientation='h',
+                 title="Top 20 Músicas Mais Populares",
+                 labels={'musica_artista': 'Música - Artista', 'popularity': 'Popularidade'},
+                 color='popularity',
+                 color_continuous_scale='sunset',
+                 height=600)
+
+    st.plotly_chart(fig)
