@@ -5,8 +5,8 @@ import plotly.express as px
 import seaborn as sns
 import matplotlib as plt
 # Configuração inicial da página
-st.set_page_config(page_title="Análise Spotify 900k", layout="wide")
-st.title("🎵 Análise Exploratória - Dataset Spotify 900k")
+st.set_page_config(page_title="Análise Spotify Tracks", layout="wide")
+st.title("🎵 Análise Exploratória - Spotify Tracks Dataset")
 
 
 
