@@ -150,3 +150,24 @@ with st.expander("Dispersão: Popularidade vs. Duração"):
     )
 
     st.plotly_chart(fig)
+
+with st.expander("💃 Gêneros Mais Dançantes"):
+    st.write("Este gráfico mostra os gêneros musicais mais dançantes com base na média de dançabilidade.")
+
+    genero_dancabilidade = df.groupby('track_genre')['danceability'].mean().reset_index()
+
+    genero_dancabilidade = genero_dancabilidade.sort_values(by='danceability', ascending=False)
+
+    fig = px.bar(genero_dancabilidade.head(10),
+                 x='danceability', 
+                 y='track_genre', 
+                 title="Top 10 Gêneros Mais Dançantes",
+                 labels={'track_genre': 'Gênero Musical', 'danceability': 'Dançabilidade Média'},
+                 color='danceability',
+                 color_continuous_scale='turbo')
+
+    fig.update_layout(xaxis_title="Gênero Musical",
+                      yaxis_title="Dançabilidade Média",
+                      xaxis_tickangle=-45)
+
+    st.plotly_chart(fig)
