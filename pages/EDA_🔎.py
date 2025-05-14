@@ -4,19 +4,16 @@ import pandas as pd
 import plotly.express as px
 import seaborn as sns
 import matplotlib as plt
+
 # Configuração inicial da página
 st.set_page_config(page_title="Análise Spotify Tracks", layout="wide")
 st.title("🎵 Análise Exploratória - Spotify Tracks Dataset")
-
-
 
 @st.cache_data
 def load_data():
     return pd.read_csv("datasets/dataset.csv", encoding='utf-8', low_memory=True)
 
-
 df = load_data()
-
 
 st.subheader("🎯 1. Informações Estruturais")
 st.info(f"📊 Formato do Dataset: {df.shape[0]} linhas × {df.shape[1]} colunas")
@@ -169,5 +166,63 @@ with st.expander("💃 Gêneros Mais Dançantes"):
     fig.update_layout(xaxis_title="Gênero Musical",
                       yaxis_title="Dançabilidade Média",
                       xaxis_tickangle=-45)
+
+    st.plotly_chart(fig)
+
+
+with st.expander("Seletor de Gêneros"):
+    st.write(
+        "Selecione um ou mais gêneros para visualizar as 10 músicas mais populares de cada gênero.")
+
+    generos = df['track_genre'].unique()
+    selected_generos = st.multiselect(
+        'Selecione os gêneros:', generos, default=generos[:1])
+
+    if selected_generos:
+        top10_por_genero = []
+
+        for genero in selected_generos:
+            top10 = (
+                df[df['track_genre'] == genero]
+                .sort_values(by='popularity', ascending=False)
+                .drop_duplicates(subset='track_name')
+                .head(10)
+            )
+            top10['musica_artista'] = top10['track_name'] + \
+                ' - ' + top10['artists']
+            top10_por_genero.append(top10)
+
+        resultado = pd.concat(top10_por_genero)
+
+        fig = px.bar(
+            resultado.sort_values(by='popularity'),
+            x='popularity',
+            y='musica_artista',
+            orientation='h',
+            title="Top 10 Músicas Mais Populares por Gênero Selecionado",
+            labels={'musica_artista': 'Música - Artista',
+                    'popularity': 'Popularidade'},
+            color='track_genre',
+            color_discrete_sequence=px.colors.qualitative.Set3,
+            height=600
+        )
+
+        st.plotly_chart(fig)
+
+with st.expander("Top 10 Gêneros com mais músicas"):
+    st.write(
+        "Este gráfico mostra os 10 gêneros com mais músicas no dataset, com base na contagem de músicas por gênero.")
+
+    genero_count = df['track_genre'].value_counts().reset_index()
+    genero_count.columns = ['track_genre', 'count']
+
+    fig = px.bar(genero_count.head(10),
+                 x='count',
+                 y='track_genre',
+                 title="Top 10 Gêneros com Mais Músicas",
+                 labels={'track_genre': 'Gênero Musical',
+                         'count': 'Número de Músicas'},
+                 color='count',
+                 color_continuous_scale='magma')
 
     st.plotly_chart(fig)
