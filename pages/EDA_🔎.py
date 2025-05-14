@@ -245,3 +245,25 @@ with st.expander("Gênero com mais músicas explicitas"):
                  color_continuous_scale='cividis')
 
     st.plotly_chart(fig)
+
+with st.expander("Músicas explicitas"):
+    st.write(
+        "Este gráfico mostra as músicas explícitas mais populares, com base na pontuação de popularidade.")
+
+    explicit_tracks = df[df['explicit'] == 1].sort_values(
+        by='popularity', ascending=False).drop_duplicates(subset='track_name').head(20)
+    explicit_tracks['musica_artista'] = explicit_tracks['track_name'] + \
+        ' - ' + explicit_tracks['artists']
+
+    fig = px.bar(explicit_tracks.sort_values(by='popularity'),
+                 x='popularity',
+                 y='musica_artista',
+                 orientation='h',
+                 title="Top 20 Músicas Explícitas Mais Populares",
+                 labels={'musica_artista': 'Música - Artista',
+                         'popularity': 'Popularidade'},
+                 color='popularity',
+                 color_continuous_scale='plasma',
+                 height=600)
+
+    st.plotly_chart(fig)
