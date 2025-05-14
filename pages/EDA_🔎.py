@@ -226,3 +226,22 @@ with st.expander("Top 10 Gêneros com mais músicas"):
                  color_continuous_scale='magma')
 
     st.plotly_chart(fig)
+
+with st.expander("Gênero com mais músicas explicitas"):
+    st.write(
+        "Este gráfico mostra os gêneros com mais músicas explícitas, com base na contagem de músicas explícitas por gênero.")
+
+    genero_explicit = df[df['explicit'] ==
+                         1]['track_genre'].value_counts().reset_index()
+    genero_explicit.columns = ['track_genre', 'count']
+
+    fig = px.bar(genero_explicit.head(10),
+                 x='count',
+                 y='track_genre',
+                 title="Top 10 Gêneros com Mais Músicas Explícitas",
+                 labels={'track_genre': 'Gênero Musical',
+                         'count': 'Número de Músicas Explícitas'},
+                 color='count',
+                 color_continuous_scale='cividis')
+
+    st.plotly_chart(fig)
