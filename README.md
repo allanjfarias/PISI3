@@ -1,6 +1,6 @@
 # Título do Projeto
 
-Projeto de " " para a disciplina Projeto Interdisciplinar para Sistemas de Informação 3 (PISI3) do curso Bacharelado em Sistemas de Informação da UFRPE.
+Projeto de Machine Learning para a disciplina Projeto Interdisciplinar para Sistemas de Informação 3 (PISI3) do curso Bacharelado em Sistemas de Informação da UFRPE.
 
 ## Autores
 
