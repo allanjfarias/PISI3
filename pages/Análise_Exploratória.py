@@ -244,3 +244,181 @@ if len(df_filtrado) > 0:
 
 st.markdown("---")
 st.markdown("*💡 Use os filtros na barra lateral para explorar diferentes segmentos dos dados*")
+
+st.header("🔍 Análise interativa")
+
+tab1, tab2, tab3, tab4 = st.tabs(["📈 Distribuições", "🎯 Correlações", "🏆 Rankings", "📊 Comparações"])
+
+with tab1:
+    st.subheader("Distribuições das características")
+    
+    caracteristicas_disponiveis_ai = ['danceability', 'energy', 'valence', 'acousticness', 
+                                 'instrumentalness', 'liveness', 'speechiness', 'loudness', 'tempo']
+    
+    caracteristicas_selecionadas_ai = st.multiselect(
+        "Selecione as características para visualizar:",
+        caracteristicas_disponiveis_ai,
+        default=['danceability', 'energy', 'valence', 'acousticness'],
+        key="ai_dist_multiselect"
+    )
+    
+    if caracteristicas_selecionadas_ai:
+        for char in caracteristicas_selecionadas_ai:
+            fig = px.histogram(
+                df_filtrado,
+                x=char,
+                nbins=30,
+                title=f"Distribuição de {char.capitalize()}",
+                labels={char: char.capitalize()},
+                color_discrete_sequence=['#1DB954']
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+with tab2:
+    st.subheader("Análise de correlações")
+    
+    col1_ai, col2_ai = st.columns(2)
+    
+    with col1_ai:
+        x_axis_ai = st.selectbox(
+            "Eixo X:",
+            caracteristicas_disponiveis_ai,
+            index=0,
+            key="ai_corr_x"
+        )
+    
+    with col2_ai:
+        y_axis_ai = st.selectbox(
+            "Eixo Y:",
+            caracteristicas_disponiveis_ai,
+            index=1,
+            key="ai_corr_y"
+        )
+    
+    color_by_popularity_ai = st.checkbox("Colorir por popularidade", value=True, key="ai_corr_color_pop")
+    
+    sample_size_ai = min(2000, len(df_filtrado))
+    df_sample_ai = df_filtrado.sample(sample_size_ai) if len(df_filtrado) > sample_size_ai else df_filtrado
+    
+    if color_by_popularity_ai:
+        fig_scatter_ai = px.scatter(
+            df_sample_ai,
+            x=x_axis_ai,
+            y=y_axis_ai,
+            color='is_popular',
+            title=f"Correlação: {x_axis_ai.capitalize()} vs {y_axis_ai.capitalize()}",
+            labels={'is_popular': 'Popular'}, 
+            color_discrete_map={0: '#FF6B6B', 1: '#1DB954'}
+        )
+    else:
+        fig_scatter_ai = px.scatter(
+            df_sample_ai,
+            x=x_axis_ai,
+            y=y_axis_ai,
+            title=f"Correlação: {x_axis_ai.capitalize()} vs {y_axis_ai.capitalize()}"
+        )
+    
+    st.plotly_chart(fig_scatter_ai, use_container_width=True)
+    
+    corr_coef_ai = df_filtrado[x_axis_ai].corr(df_filtrado[y_axis_ai])
+    st.metric("Coeficiente de correlação", f"{corr_coef_ai:.3f}")
+
+with tab3:
+    st.subheader("Rankings dinâmicos")
+    
+    metrica_ranking_ai = st.selectbox(
+        "Selecione a métrica para ranking:",
+        ['danceability', 'energy', 'valence', 'acousticness', 'loudness', 'tempo'],
+        key="ai_ranking_metric"
+    )
+    
+    agrupar_por_ai = st.selectbox(
+        "Agrupar por:",
+        ['is_popular', 'explicit'],
+        format_func=lambda x: 'Popularidade' if x == 'is_popular' else 'Conteúdo explícito',
+        key="ai_ranking_group"
+    )
+    
+    if agrupar_por_ai == 'is_popular':
+        ranking_data_ai = df_filtrado.groupby(agrupar_por_ai)[metrica_ranking_ai].mean().reset_index()
+        ranking_data_ai['Categoria'] = ranking_data_ai['is_popular'].map({0: 'Não popular', 1: 'Popular'})
+    else:
+        ranking_data_ai = df_filtrado.groupby(agrupar_por_ai)[metrica_ranking_ai].mean().reset_index()
+        ranking_data_ai['Categoria'] = ranking_data_ai['explicit'].apply(lambda x: 'Explícito' if x > 0 else 'Não explícito')
+    
+    fig_ranking_ai = px.bar(
+        ranking_data_ai,
+        x='Categoria',
+        y=metrica_ranking_ai,
+        title=f"Comparação de {metrica_ranking_ai.capitalize()} por {('popularidade' if agrupar_por_ai == 'is_popular' else 'conteúdo')}",
+        color=metrica_ranking_ai,
+        color_continuous_scale='Viridis'
+    )
+    st.plotly_chart(fig_ranking_ai, use_container_width=True)
+
+with tab4:
+    st.subheader("Comparação entre categorias")
+    
+    char_comparacao_ai = st.selectbox(
+        "Característica para comparação:",
+        caracteristicas_disponiveis_ai,
+        key="ai_comp_char"
+    )
+    
+    categoria_comparacao_ai = st.selectbox(
+        "Comparar por:",
+        ['is_popular', 'explicit'],
+        format_func=lambda x: 'Popularidade' if x == 'is_popular' else 'Conteúdo explícito',
+        key="ai_cat_comp"
+    )
+    
+    fig_box_ai = px.box(
+        df_filtrado,
+        x=categoria_comparacao_ai,
+        y=char_comparacao_ai,
+        title=f"Comparação de {char_comparacao_ai.capitalize()} por {('popularidade' if categoria_comparacao_ai == 'is_popular' else 'conteúdo')}",
+        labels={categoria_comparacao_ai: 'Categoria', char_comparacao_ai: char_comparacao_ai.capitalize()}
+    )
+    st.plotly_chart(fig_box_ai, use_container_width=True)
+    
+    st.subheader("Estatísticas descritivas")
+    stats_df_ai = df_filtrado.groupby(categoria_comparacao_ai)[char_comparacao_ai].describe().round(3)
+    st.dataframe(stats_df_ai, use_container_width=True)
+
+st.header("📊 Visão geral dos dados filtrados")
+
+if len(df_filtrado) > 0:
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+
+    populares_ai = df_filtrado['is_popular'].sum()
+    pct_populares_filtro_ai = (populares_ai / len(df_filtrado) * 100)
+    explicitas_ai = (df_filtrado['explicit'] > 0).sum()
+    pct_explicitas_filtro_ai = (explicitas_ai / len(df_filtrado) * 100)
+
+    with col1:
+        st.metric("🔥 Populares", f"{populares_ai:,}", f"{pct_populares_filtro_ai:.1f}%")
+    with col2:
+        st.metric("🚫 Explícitas", f"{explicitas_ai:,}", f"{pct_explicitas_filtro_ai:.1f}%")
+
+    caracteristicas_media_ai = df_filtrado[['danceability', 'energy', 'valence', 'acousticness']].mean()
+
+    with col3:
+        st.metric("💃 Dançabilidade", f"{caracteristicas_media_ai['danceability']:.3f}")
+    with col4:
+        st.metric("⚡ Energia", f"{caracteristicas_media_ai['energy']:.3f}")
+    with col5:
+        st.metric("😊 Valência", f"{caracteristicas_media_ai['valence']:.3f}")
+    with col6:
+        st.metric("🎸 Acústico", f"{caracteristicas_media_ai['acousticness']:.3f}")
+
+if st.button("📥 Exportar dados filtrados", key="ai_export_button"):
+    csv = df_filtrado.to_csv(index=False)
+    st.download_button(
+        label="Download CSV",
+        data=csv,
+        file_name=f"spotify_filtrado_{len(df_filtrado)}_musicas.csv",
+        mime="text/csv"
+    )
+
+st.markdown("---")
+st.markdown("*💡 Use os filtros na barra lateral para explorar diferentes perfis musicais*")
