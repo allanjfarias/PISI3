@@ -1,269 +1,246 @@
-import matplotlib.pyplot as plt
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import seaborn as sns
-import matplotlib as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import numpy as np
 
-# Configuração inicial da página
-st.set_page_config(page_title="Análise Spotify Tracks", layout="wide")
-st.title("🎵 Análise Exploratória - Spotify Tracks Dataset")
+st.set_page_config(page_title="Análise Exploratória", layout="wide")
+st.title("🎵 Análise Exploratória de Dados (EDA)")
 
 @st.cache_data
 def load_data():
-    return pd.read_csv("datasets/dataset.csv", encoding='utf-8', low_memory=True)
+    return pd.read_csv("datasets/spotify_processed.csv", encoding='utf-8', low_memory=True)
 
-df = load_data()
+try:
+    df = load_data()
+    st.success(f"✅ Dataset carregado com sucesso: {df.shape[0]:,} músicas e {df.shape[1]} características")
+except FileNotFoundError:
+    st.error("❌ Arquivo 'spotify_processed.csv' não encontrado na pasta 'datasets'")
+    st.stop()
 
-st.subheader("🎯 1. Informações Estruturais")
-st.info(f"📊 Formato do Dataset: {df.shape[0]} linhas × {df.shape[1]} colunas")
+st.sidebar.header("🎛️ Filtros globais")
+
+popularidade_filter = st.sidebar.selectbox(
+    "Filtrar por popularidade:",
+    ["Todas", "Populares", "Não populares"]
+)
+
+st.sidebar.subheader("Características musicais")
+
+danceability_range = st.sidebar.slider(
+    "Dançabilidade:",
+    min_value=float(df['danceability'].min()),
+    max_value=float(df['danceability'].max()),
+    value=(float(df['danceability'].min()), float(df['danceability'].max())),
+    step=0.1
+)
+
+energy_range = st.sidebar.slider(
+    "Energia:",
+    min_value=float(df['energy'].min()),
+    max_value=float(df['energy'].max()),
+    value=(float(df['energy'].min()), float(df['energy'].max())),
+    step=0.1
+)
+
+valence_range = st.sidebar.slider(
+    "Valência (positividade):",
+    min_value=float(df['valence'].min()),
+    max_value=float(df['valence'].max()),
+    value=(float(df['valence'].min()), float(df['valence'].max())),
+    step=0.1
+)
+
+acousticness_range = st.sidebar.slider(
+    "Acústico:",
+    min_value=float(df['acousticness'].min()),
+    max_value=float(df['acousticness'].max()),
+    value=(float(df['acousticness'].min()), float(df['acousticness'].max())),
+    step=0.1
+)
+
+duration_range = st.sidebar.slider(
+    "Duração (normalizada):",
+    min_value=float(df['duration_ms'].min()),
+    max_value=float(df['duration_ms'].max()),
+    value=(float(df['duration_ms'].min()), float(df['duration_ms'].max())),
+    step=0.1
+)
+
+st.sidebar.subheader("Características categóricas")
+
+key_columns = [col for col in df.columns if col.startswith('key_')]
+selected_keys = st.sidebar.multiselect(
+    "Tonalidades:",
+    key_columns,
+    default=key_columns[:3],
+    format_func=lambda x: f"Key {x.split('_')[1]}"
+)
+
+df_filtrado = df.copy()
+
+if popularidade_filter == "Populares":
+    df_filtrado = df_filtrado[df_filtrado['is_popular'] == 1]
+elif popularidade_filter == "Não populares":
+    df_filtrado = df_filtrado[df_filtrado['is_popular'] == 0]
+
+explicit_filter = st.sidebar.selectbox(
+    "Conteúdo explícito:",
+    ["Todos", "Explícito", "Não explícito"],
+    key="explicit_filter_eda"
+)
+if explicit_filter == "Explícito":
+    df_filtrado = df_filtrado[df_filtrado['explicit'] > 0]
+elif explicit_filter == "Não explícito":
+    df_filtrado = df_filtrado[df_filtrado['explicit'] <= 0]
+
+df_filtrado = df_filtrado[
+    (df_filtrado['danceability'] >= danceability_range[0]) & 
+    (df_filtrado['danceability'] <= danceability_range[1])
+]
+
+df_filtrado = df_filtrado[
+    (df_filtrado['energy'] >= energy_range[0]) & 
+    (df_filtrado['energy'] <= energy_range[1])
+]
+
+df_filtrado = df_filtrado[
+    (df_filtrado['valence'] >= valence_range[0]) & 
+    (df_filtrado['valence'] <= valence_range[1])
+]
+
+df_filtrado = df_filtrado[
+    (df_filtrado['acousticness'] >= acousticness_range[0]) & 
+    (df_filtrado['acousticness'] <= acousticness_range[1])
+]
+
+df_filtrado = df_filtrado[
+    (df_filtrado['duration_ms'] >= duration_range[0]) & 
+    (df_filtrado['duration_ms'] <= duration_range[1])
+]
+
+if selected_keys:
+    key_filter = df_filtrado[selected_keys].sum(axis=1) > 0
+    df_filtrado = df_filtrado[key_filter]
+
+st.info(f"📊 Dados filtrados: {df_filtrado.shape[0]:,} músicas selecionadas")
+
+st.header("📊 1. Visão geral dos dados")
 
 col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.metric("🎵 Total de músicas", f"{df_filtrado.shape[0]:,}")
+with col2:
+    populares = df_filtrado['is_popular'].sum()
+    st.metric("🔥 Músicas populares", f"{populares:,}")
+with col3:
+    pct_populares = (populares / len(df_filtrado) * 100) if len(df_filtrado) > 0 else 0
+    st.metric("📈 Percentual popular", f"{pct_populares:.1f}%")
+with col4:
+    st.metric("🎼 Características", df_filtrado.shape[1])
 
-col1.metric("Track Names", df['track_name'].nunique())
-col2.metric("Genres", df['track_genre'].nunique())
-col3.metric("Artists", df['artists'].nunique())
-col4.metric("Albums", df['album_name'].nunique())
+st.header("2. Análise de popularidade")
 
+pop_counts = df_filtrado['is_popular'].value_counts()
+fig_pop = px.pie(
+    values=pop_counts.values,
+    names=['Não popular', 'Popular'],
+    title="Distribuição de popularidade",
+    color_discrete_sequence=['#FF6B6B', '#1DB954']
+)
+st.plotly_chart(fig_pop, use_container_width=True)
 
-st.write("**Colunas e Tipos de Dados:**")
-info_df = pd.DataFrame({
-    "Coluna": df.columns,
-    "Tipo de Dado": df.dtypes.values
-})
-st.dataframe(info_df)
+st.subheader("Características médias por popularidade")
+caracteristicas_principais = ['danceability', 'energy', 'valence', 'acousticness']
 
+dados_comparacao = []
+for char in caracteristicas_principais:
+    for pop in [0, 1]:
+        dados_comparacao.append({
+            'Característica': char.capitalize(),
+            'Popularidade': 'Popular' if pop == 1 else 'Não popular',
+            'Valor': df_filtrado[df_filtrado['is_popular'] == pop][char].mean()
+        })
 
-with st.expander(" Visualizar primeiras linhas do dataset"):
-    st.dataframe(df.head())
+df_comp = pd.DataFrame(dados_comparacao)
 
-st.subheader("🧼 2. Qualidade dos Dados")
+fig_comp = px.bar(
+    df_comp,
+    x='Característica',
+    y='Valor',
+    color='Popularidade',
+    title="Características médias por popularidade",
+    barmode='group',
+    color_discrete_sequence=['#FF6B6B', '#1DB954']
+)
+st.plotly_chart(fig_comp, use_container_width=True)
 
-nulos = df.isnull().sum().reset_index()
-nulos.columns = ["Coluna", "Qtd. Nulos"]
-st.write("**Quantidade de valores nulos por coluna:**")
-st.dataframe(nulos)
+st.header("🎼 3. Características musicais")
 
+caracteristicas_musicais = [
+    'danceability', 'energy', 'valence', 'acousticness', 
+    'instrumentalness', 'liveness', 'speechiness', 'loudness', 'tempo'
+]
 
-st.subheader("📊 3. Resumo Estatístico")
+caracteristica_selecionada = st.selectbox(
+    "Selecione uma característica musical para análise detalhada:",
+    caracteristicas_musicais,
+    format_func=lambda x: x.capitalize()
+)
 
-with st.expander(" Resumo das variáveis numéricas (describe):"):
-    st.dataframe(df.describe())
+fig_char = px.histogram(
+    df_filtrado,
+    x=caracteristica_selecionada,
+    nbins=25,
+    title=f"Distribuição de {caracteristica_selecionada.capitalize()}",
+    labels={caracteristica_selecionada: caracteristica_selecionada.capitalize()},
+    color_discrete_sequence=['#FF6B6B']
+)
+st.plotly_chart(fig_char, use_container_width=True)
 
+fig_box = px.box(
+    df_filtrado,
+    x='is_popular',
+    y=caracteristica_selecionada,
+    title=f"{caracteristica_selecionada.capitalize()} por popularidade",
+    labels={'is_popular': 'Popularidade (0=Não, 1=Sim)'}, 
+    color_discrete_map={0: '#FF6B6B', 1: '#1DB954'}
+)
+st.plotly_chart(fig_box, use_container_width=True)
 
-st.subheader("🔍 4. Exploração Inicial")
+st.header("🔍 4. Correlações")
 
-with st.expander('Histogramas para atributos musicais'):
-    fig = px.histogram(df, x='popularity', nbins=50, title="Distribuição de Popularidade das Músicas",
-                       labels={'popularity': 'Popularidade'},
-                       color_discrete_sequence=['skyblue'])
-    st.plotly_chart(fig)
+caracteristicas_numericas = ['danceability', 'energy', 'valence', 'acousticness', 
+                           'instrumentalness', 'liveness', 'speechiness', 'loudness', 'tempo', 'duration_ms']
 
-    st.markdown("""
-    Este gráfico interativo mostra a distribuição das principais características acústicas das músicas do dataset. 
-    Você pode visualizar como as músicas variam em relação a cada uma das características, como dançabilidade, energia, valência, entre outras.
-    """)
+caracteristicas_existentes = [col for col in caracteristicas_numericas if col in df_filtrado.columns]
 
-    acoustic_features = [
-        'danceability', 'energy', 'valence', 'speechiness', 'acousticness',
-        'instrumentalness', 'liveness', 'tempo'
-    ]
+corr_matrix = df_filtrado[caracteristicas_existentes].corr()
 
-    for feature in acoustic_features:
-        fig = px.histogram(df, x=feature, nbins=50, title=f'Distribuição de {feature.capitalize()}',
-                           labels={feature: feature.capitalize()},
-                           color_discrete_sequence=['skyblue'])
-        st.plotly_chart(fig)
+fig_corr = px.imshow(
+    corr_matrix,
+    text_auto=True,
+    aspect="auto",
+    title="Matriz de correlação - características musicais",
+    color_continuous_scale='RdBu_r'
+)
+fig_corr.update_layout(height=600)
+st.plotly_chart(fig_corr, use_container_width=True)
 
-with st.expander("Gêneros Mais Populares"):
-    st.write("Este gráfico mostra os gêneros musicais mais populares com base na média de popularidade.")
+st.subheader("📊 Estatísticas por popularidade")
 
-    genero_popularidade = df.groupby('track_genre')['popularity'].mean().reset_index()
+if len(df_filtrado) > 0:
+    stats_populares = df_filtrado[df_filtrado['is_popular'] == 1][caracteristicas_existentes].mean()
+    stats_nao_populares = df_filtrado[df_filtrado['is_popular'] == 0][caracteristicas_existentes].mean()
+    
+    stats_df = pd.DataFrame({
+        'Não populares': stats_nao_populares,
+        'Populares': stats_populares,
+        'Diferença': stats_populares - stats_nao_populares
+    }).round(3)
+    
+    st.dataframe(stats_df, use_container_width=True)
 
-    genero_popularidade = genero_popularidade.sort_values(by='popularity', ascending=False)
-
-    fig = px.bar(genero_popularidade.head(10),  
-                 x='track_genre', 
-                 y='popularity', 
-                 title="Top 10 Gêneros Mais Populares",
-                 labels={'track_genre': 'Gênero Musical', 'popularity': 'Popularidade Média'},
-                 color='popularity',
-                 color_continuous_scale='viridis')
-
-    st.plotly_chart(fig)
-
-with st.expander("Gênero com Mais Músicas no Top 0,001% Mais Populares"):
-    st.write("Este gráfico mostra qual gênero tem o maior número de músicas no top 0,001% das músicas mais populares.")
-
-    limite_top = df['popularity'].quantile(0.999)
-
-    top_musicas = df[df['popularity'] >= limite_top]
-
-    genero_top = top_musicas['track_genre'].value_counts().reset_index()
-    genero_top.columns = ['track_genre', 'count']
-
-    fig = px.bar(genero_top, 
-                 x='count', 
-                 y='track_genre', 
-                 title="Gêneros com Mais Músicas no Top 0,001% Mais Populares",
-                 labels={'track_genre': 'Gênero Musical', 'count': 'Número de Músicas'},
-                 color='count',
-                 color_continuous_scale='plasma')
-
-    st.plotly_chart(fig)
-
-with st.expander("Músicas Mais Populares"):
-    st.write("Este gráfico mostra as músicas mais populares, com base na pontuação de popularidade.")
-
-    top_tracks = df.sort_values(by='popularity', ascending=False).drop_duplicates(subset='track_name').head(20)
-    top_tracks['musica_artista'] = top_tracks['track_name'] + ' - ' + top_tracks['artists']
-
-    fig = px.bar(top_tracks.sort_values(by='popularity'),
-                 x='popularity',
-                 y='musica_artista',
-                 orientation='h',
-                 title="Top 20 Músicas Mais Populares",
-                 labels={'musica_artista': 'Música - Artista', 'popularity': 'Popularidade'},
-                 color='popularity',
-                 color_continuous_scale='sunset',
-                 height=600)
-
-    st.plotly_chart(fig)
-
-with st.expander("Dispersão: Popularidade vs. Duração"):
-    st.write("Este gráfico mostra a relação entre popularidade e a duração (em ms) das 100 músicas mais populares.")
-
-    top100_musicas = df.sort_values(by='popularity', ascending=False).drop_duplicates(subset='track_name').head(100)
-
-    fig = px.scatter(
-        top100_musicas,
-        x='duration_ms',
-        y='popularity',
-        hover_data='track_name',
-        labels={'duration_ms': 'Duração (ms)', 'popularity': 'Popularidade'},
-        title='Relação entre Popularidade e Duração das 100 Músicas Mais Populares',
-        color='popularity',
-        color_continuous_scale='viridis'
-    )
-
-    st.plotly_chart(fig)
-
-with st.expander("💃 Gêneros Mais Dançantes"):
-    st.write("Este gráfico mostra os gêneros musicais mais dançantes com base na média de dançabilidade.")
-
-    genero_dancabilidade = df.groupby('track_genre')['danceability'].mean().reset_index()
-
-    genero_dancabilidade = genero_dancabilidade.sort_values(by='danceability', ascending=False)
-
-    fig = px.bar(genero_dancabilidade.head(10),
-                 x='danceability', 
-                 y='track_genre', 
-                 title="Top 10 Gêneros Mais Dançantes",
-                 labels={'track_genre': 'Gênero Musical', 'danceability': 'Dançabilidade Média'},
-                 color='danceability',
-                 color_continuous_scale='turbo')
-
-    fig.update_layout(xaxis_title="Gênero Musical",
-                      yaxis_title="Dançabilidade Média",
-                      xaxis_tickangle=-45)
-
-    st.plotly_chart(fig)
-
-
-with st.expander("Seletor de Gêneros"):
-    st.write(
-        "Selecione um ou mais gêneros para visualizar as 10 músicas mais populares de cada gênero.")
-
-    generos = df['track_genre'].unique()
-    selected_generos = st.multiselect(
-        'Selecione os gêneros:', generos, default=generos[:1])
-
-    if selected_generos:
-        top10_por_genero = []
-
-        for genero in selected_generos:
-            top10 = (
-                df[df['track_genre'] == genero]
-                .sort_values(by='popularity', ascending=False)
-                .drop_duplicates(subset='track_name')
-                .head(10)
-            )
-            top10['musica_artista'] = top10['track_name'] + \
-                ' - ' + top10['artists']
-            top10_por_genero.append(top10)
-
-        resultado = pd.concat(top10_por_genero)
-
-        fig = px.bar(
-            resultado.sort_values(by='popularity'),
-            x='popularity',
-            y='musica_artista',
-            orientation='h',
-            title="Top 10 Músicas Mais Populares por Gênero Selecionado",
-            labels={'musica_artista': 'Música - Artista',
-                    'popularity': 'Popularidade'},
-            color='track_genre',
-            color_discrete_sequence=px.colors.qualitative.Set3,
-            height=600
-        )
-
-        st.plotly_chart(fig)
-
-with st.expander("Top 10 Gêneros com mais músicas"):
-    st.write(
-        "Este gráfico mostra os 10 gêneros com mais músicas no dataset, com base na contagem de músicas por gênero.")
-
-    genero_count = df['track_genre'].value_counts().reset_index()
-    genero_count.columns = ['track_genre', 'count']
-
-    fig = px.bar(genero_count.head(10),
-                 x='count',
-                 y='track_genre',
-                 title="Top 10 Gêneros com Mais Músicas",
-                 labels={'track_genre': 'Gênero Musical',
-                         'count': 'Número de Músicas'},
-                 color='count',
-                 color_continuous_scale='magma')
-
-    st.plotly_chart(fig)
-
-with st.expander("Gênero com mais músicas explicitas"):
-    st.write(
-        "Este gráfico mostra os gêneros com mais músicas explícitas, com base na contagem de músicas explícitas por gênero.")
-
-    genero_explicit = df[df['explicit'] ==
-                         1]['track_genre'].value_counts().reset_index()
-    genero_explicit.columns = ['track_genre', 'count']
-
-    fig = px.bar(genero_explicit.head(10),
-                 x='count',
-                 y='track_genre',
-                 title="Top 10 Gêneros com Mais Músicas Explícitas",
-                 labels={'track_genre': 'Gênero Musical',
-                         'count': 'Número de Músicas Explícitas'},
-                 color='count',
-                 color_continuous_scale='cividis')
-
-    st.plotly_chart(fig)
-
-with st.expander("Músicas explicitas"):
-    st.write(
-        "Este gráfico mostra as músicas explícitas mais populares, com base na pontuação de popularidade.")
-
-    explicit_tracks = df[df['explicit'] == 1].sort_values(
-        by='popularity', ascending=False).drop_duplicates(subset='track_name').head(20)
-    explicit_tracks['musica_artista'] = explicit_tracks['track_name'] + \
-        ' - ' + explicit_tracks['artists']
-
-    fig = px.bar(explicit_tracks.sort_values(by='popularity'),
-                 x='popularity',
-                 y='musica_artista',
-                 orientation='h',
-                 title="Top 20 Músicas Explícitas Mais Populares",
-                 labels={'musica_artista': 'Música - Artista',
-                         'popularity': 'Popularidade'},
-                 color='popularity',
-                 color_continuous_scale='plasma',
-                 height=600)
-
-    st.plotly_chart(fig)
+st.markdown("---")
+st.markdown("*💡 Use os filtros na barra lateral para explorar diferentes segmentos dos dados*")
