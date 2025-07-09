@@ -1,122 +1,215 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
+import joblib
 import shap
-import os
-import matplotlib.pyplot as plt
+import plotly.express as px
 
-# Configurações iniciais da página do Streamlit
-st.set_page_config(
-    page_title="Classificador de Popularidade",
-    page_icon="🎵",
-    layout="wide"
-)
+st.set_page_config(page_title="Previsão", layout="wide")
+st.title("🤖 Previsão de popularidade")
 
-# Armazena os arquivos em cache para que não sejam recarregados a cada interação do usuário.
 @st.cache_resource
-def load_files(pipeline_path, background_path):
-    """Carrega o pipeline do modelo e os dados de background para o SHAP."""
+def load_models():
+    models = {}
     try:
-        with open(pipeline_path, 'rb') as f_model:
-            model_pipeline = pickle.load(f_model)
-        background_data = pd.read_csv(background_path)
-        return model_pipeline, background_data
-    except Exception as e:
-        st.error(f"Erro ao carregar arquivos: {e}")
-        return None, None
+        models["Random Forest"] = joblib.load("modelos/random_forest_model.joblib")
+        models["XGBoost"] = joblib.load("modelos/xgboost_model.joblib")
+        models["SVM"] = joblib.load("modelos/svm_model.joblib")
+        models["KNN"] = joblib.load("modelos/knn_model.joblib")
+        return models
+    except FileNotFoundError as e:
+        st.error(f"❌ Modelo não encontrado: {e.filename}. Certifique-se de que os arquivos .joblib estão na pasta 'modelos/'.")
+        return None
 
-# Constrói os caminhos para os arquivos de forma relativa à localização do script.
-pipeline_path = os.path.join(os.path.dirname(__file__), '..', 'modelos', 'pipeline_completo.pkl')
-background_path = os.path.join(os.path.dirname(__file__), '..', 'datasets', 'X_train_background.csv')
+@st.cache_data
+def load_example_data():
+    try:
+        df = pd.read_csv("datasets/spotify_processed.csv")
+        return df
+    except FileNotFoundError:
+        st.error("❌ Arquivo 'datasets/spotify_processed.csv' não encontrado. Ele é necessário para preencher os valores iniciais dos seletores.")
+        return None
 
-# Carrega os artefatos necessários para a aplicação.
-modelo_pipeline, X_train_background = load_files(pipeline_path, background_path)
+models = load_models()
+example_data = load_example_data()
 
-# --- Interface do Usuário na Barra Lateral ---
-st.sidebar.header("Insira as Características da Música")
-
-# Verifica se os arquivos foram carregados antes de continuar.
-if not all([modelo_pipeline, X_train_background is not None]):
-    st.error("Arquivos essenciais não foram encontrados. Verifique as pastas 'modelos' e 'datasets'.")
+if models is None or example_data is None:
+    st.warning("A aplicação não pode continuar sem os modelos e o arquivo de dados de exemplo.")
     st.stop()
 
-# Agrupa os inputs em um formulário para que a página só seja atualizada ao clicar no botão.
-with st.sidebar.form(key='prediction_form'):
-    st.write("Ajuste os valores para corresponder à música que deseja analisar.")
+st.success("✅ Modelos e dados carregados com sucesso!")
+
+st.sidebar.header("⚙️ Seleção de Modelo")
+model_name = st.sidebar.selectbox("Escolha o modelo para a predição:", list(models.keys()))
+model = models[model_name]
+
+try:
+    expected_features = model.feature_names_in_
+except AttributeError:
+    st.error(f"❌ O modelo '{model_name}' não contém a lista de features ('feature_names_in_'). "
+             f"Ele pode não ter sido treinado com um DataFrame do Pandas. "
+             f"Por favor, retreine o modelo garantindo que os nomes das colunas sejam salvos.")
+    st.stop()
+
+with st.expander("ℹ️ Informações do modelo"):
+    st.write(f"**Tipo de modelo:** {model_name}")
+    st.write(f"**Número de características esperadas pelo modelo:** {len(expected_features)}")
+    st.write(f"**Classes de predição:** Não Popular, Popular")
+    st.write("**Features esperadas:**")
+    st.code(f"{list(expected_features)}", language="python")
+
+st.header("🎯 Fazer predição")
+st.write("Ajuste os parâmetros abaixo para prever se uma música será popular:")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.subheader("🎵 Características básicas")
+    duration_ms = st.slider("Duração (normalizada)", float(example_data["duration_ms"].min()), float(example_data["duration_ms"].max()), float(example_data["duration_ms"].mean()))
+    explicit = st.slider("Explícito (normalizada)", float(example_data["explicit"].min()), float(example_data["explicit"].max()), float(example_data["explicit"].mean()))
+    loudness = st.slider("Volume (normalizada)", float(example_data["loudness"].min()), float(example_data["loudness"].max()), float(example_data["loudness"].mean()))
+    tempo = st.slider("Tempo (normalizada)", float(example_data["tempo"].min()), float(example_data["tempo"].max()), float(example_data["tempo"].mean()))
+
+with col2:
+    st.subheader("🎼 Características musicais")
+    danceability = st.slider("Dançabilidade", float(example_data["danceability"].min()), float(example_data["danceability"].max()), float(example_data["danceability"].mean()))
+    energy = st.slider("Energia", float(example_data["energy"].min()), float(example_data["energy"].max()), float(example_data["energy"].mean()))
+    valence = st.slider("Valência (positividade)", float(example_data["valence"].min()), float(example_data["valence"].max()), float(example_data["valence"].mean()))
+    acousticness = st.slider("Acústico", float(example_data["acousticness"].min()), float(example_data["acousticness"].max()), float(example_data["acousticness"].mean()))
+
+with col3:
+    st.subheader("🎤 Características avançadas")
+    speechiness = st.slider("Fala", float(example_data["speechiness"].min()), float(example_data["speechiness"].max()), float(example_data["speechiness"].mean()))
+    instrumentalness = st.slider("Instrumental", float(example_data["instrumentalness"].min()), float(example_data["instrumentalness"].max()), float(example_data["instrumentalness"].mean()))
+    liveness = st.slider("Ao vivo", float(example_data["liveness"].min()), float(example_data["liveness"].max()), float(example_data["liveness"].mean()))
+
+st.subheader("🎹 Características categóricas")
+col1_cat, col2_cat, col3_cat = st.columns(3)
+
+with col1_cat:
+    key_options = sorted([f for f in expected_features if 'key_' in f])
+    selected_key = st.selectbox("Tonalidade:", ["Nenhuma"] + key_options)
+with col2_cat:
+    mode_options = sorted([f for f in expected_features if 'mode_' in f])
+    selected_mode = st.selectbox("Modo:", ["Nenhuma"] + mode_options)
+with col3_cat:
+    time_sig_options = sorted([f for f in expected_features if 'time_signature_' in f])
+    selected_time_sig = st.selectbox("Assinatura de tempo:", ["Nenhuma"] + time_sig_options)
+
+def prepare_input_data(model_features):
+    ui_inputs = {
+        "duration_ms": duration_ms, "explicit": explicit, "loudness": loudness,
+        "tempo": tempo, "danceability": danceability, "energy": energy,
+        "valence": valence, "acousticness": acousticness, "speechiness": speechiness,
+        "instrumentalness": instrumentalness, "liveness": liveness
+    }
+    if selected_key != "Nenhuma": ui_inputs[selected_key] = 1.0
+    if selected_mode != "Nenhuma": ui_inputs[selected_mode] = 1.0
+    if selected_time_sig != "Nenhuma": ui_inputs[selected_time_sig] = 1.0
+
+    input_dict = {feature: 0.0 for feature in model_features}
+    for feature, value in ui_inputs.items():
+        if feature in input_dict:
+            input_dict[feature] = value
+            
+    return pd.DataFrame([input_dict])[model_features]
+
+def predict_proba_wrapper(X_array):
+    X_df = pd.DataFrame(X_array, columns=expected_features)
+    return model.predict_proba(X_df)
+
+if st.button("🚀 Fazer predição", type="primary"):
+    input_df = prepare_input_data(expected_features)
     
-    # Cria os campos de entrada para cada uma das 10 features do modelo.
-    danceability = st.slider('Dançabilidade', 0.0, 1.0, 0.7, 0.01)
-    energy = st.slider('Energia', 0.0, 1.0, 0.8, 0.01)
-    loudness = st.slider('Volume (Loudness)', -60.0, 0.0, -5.5, 0.5)
-    speechiness = st.slider('Vocalização', 0.0, 1.0, 0.1, 0.01)
-    acousticness = st.slider('Acústica', 0.0, 1.0, 0.2, 0.01)
-    instrumentalness = st.slider('Instrumentalidade', 0.0, 1.0, 0.0, 0.01)
-    liveness = st.slider('Ao Vivo', 0.0, 1.0, 0.15, 0.01)
-    valence = st.slider('Positividade', 0.0, 1.0, 0.5, 0.01)
-    tempo = st.number_input('Andamento (BPM)', min_value=0, max_value=250, value=120)
-    duration_ms = st.number_input('Duração (ms)', min_value=0, value=220000, step=1000)
-    
-    submit_button = st.form_submit_button(label='Fazer Previsão')
-
-# --- Lógica Principal da Página ---
-st.title("Classificador de Popularidade de Músicas")
-st.markdown("Use a barra lateral para inserir os dados da música e clique em 'Fazer Previsão' para ver o resultado.")
-
-if submit_button:
-    # Garante que a ordem das colunas do input seja a mesma que o modelo espera.
-    colunas_do_modelo = X_train_background.columns.tolist()
-    
-    input_data = pd.DataFrame({
-        'instrumentalness': [instrumentalness], 'acousticness': [acousticness], 'duration_ms': [duration_ms],
-        'valence': [valence], 'energy': [energy], 'loudness': [loudness], 'liveness': [liveness],
-        'tempo': [tempo], 'danceability': [danceability], 'speechiness': [speechiness]
-    })
-    input_data = input_data[colunas_do_modelo]
-    
-    # Converte todos os dados para float64 para evitar instabilidade numérica no scaler.
-    input_data = input_data.astype(np.float64)
-
-    # O pipeline salvo cuida internamente do escalonamento e da previsão.
-    prediction = modelo_pipeline.predict(input_data)[0]
-    prediction_proba = modelo_pipeline.predict_proba(input_data)[0]
-
-    st.subheader("Resultado da Previsão")
-    col1, col2 = st.columns(2)
-    if prediction == 1:
-        col1.success("Potencial para ser Popular!")
-    else:
-        col1.error("Baixo potencial para ser Popular.")
-    col2.metric(label="Confiança do Modelo (Popular)", value=f"{prediction_proba[1]:.2%}")
-    st.divider()
-
-    # --- Explicação da Previsão com SHAP ---
-    st.subheader("Análise da Decisão do Modelo (SHAP)")
+    st.write("---")
+    st.header("📊 Resultado da Predição")
     
     try:
-        # Acessa os componentes (scaler e classifier) de dentro do pipeline salvo.
-        scaler_from_pipeline = modelo_pipeline.named_steps['scaler']
-        classifier_from_pipeline = modelo_pipeline.named_steps['classifier']
-
-        # Escala os dados de entrada manualmente, pois o explainer do SHAP precisa dos dados transformados.
-        input_data_scaled = scaler_from_pipeline.transform(input_data)
-        input_data_scaled_df = pd.DataFrame(input_data_scaled, columns=colunas_do_modelo)
+        prediction = model.predict(input_df)[0]
+        prediction_proba = model.predict_proba(input_df)[0]
         
-        # Cria o explainer para modelos de árvore e calcula os valores SHAP.
-        explainer = shap.TreeExplainer(classifier_from_pipeline, X_train_background)
-        shap_values = explainer.shap_values(input_data_scaled_df)
-
-        st.write("O gráfico abaixo mostra quais características **aumentaram** (em vermelho) ou **diminuíram** (em azul) a chance da música ser classificada como 'Popular'.")
+        col1_res, col2_res = st.columns(2)
         
-        fig, ax = plt.subplots()
-        # Gera o gráfico de força do SHAP, mostrando os valores originais para melhor interpretação.
-        shap.force_plot(
-            base_value=explainer.expected_value,
-            shap_values=shap_values[0,:],
-            features=input_data.iloc[0,:],
-            matplotlib=True, show=False
-        )
-        st.pyplot(fig, bbox_inches='tight')
-        plt.clf()
+        with col1_res:
+            if prediction == 1:
+                st.success("🎉 **POPULAR** - Esta música tem potencial para ser popular!")
+            else:
+                st.info("📉 **NÃO POPULAR** - Esta música provavelmente não será muito popular.")
+            st.metric("Confiança da Predição (Classe Predita)", f"{max(prediction_proba):.1%}")
+        
+        with col2_res:
+            proba_df = pd.DataFrame({"Classe": ["Não Popular", "Popular"], "Probabilidade": prediction_proba})
+            fig_proba = px.bar(proba_df, x="Classe", y="Probabilidade", title="Probabilidades por Classe",
+                               color="Probabilidade", color_continuous_scale="Viridis", text_auto='.2%')
+            fig_proba.update_layout(yaxis_title="Probabilidade", xaxis_title=None)
+            st.plotly_chart(fig_proba, use_container_width=True)
+
+        st.subheader(f"🔍 Explicação da Predição com SHAP ({model_name})")
+        
+        spinner_message = f"Calculando valores SHAP para {model_name}..."
+        if model_name in ["KNN", "SVM"]:
+            spinner_message += " Isso pode levar alguns segundos."
+
+        with st.spinner(spinner_message):
+            if model_name == "XGBoost":
+                explainer = shap.TreeExplainer(model)
+                shap_values = explainer.shap_values(input_df)[0]
+                base_value = explainer.expected_value
+
+            elif model_name == "Random Forest":
+                explainer = shap.TreeExplainer(model)
+                shap_values_all = explainer.shap_values(input_df)
+                
+                if len(shap_values_all) == 2:
+                    shap_values = np.array(shap_values_all[prediction]).flatten()
+                else:
+                    shap_values = np.array(shap_values_all).flatten()
+                    
+                base_value = explainer.expected_value[prediction]
+
+            elif model_name in ["SVM", "KNN"]:
+                X_train_summary = shap.kmeans(example_data[expected_features].values, 25)
+                
+                explainer = shap.KernelExplainer(predict_proba_wrapper, X_train_summary)
+                
+                shap_values_all = explainer.shap_values(input_df.values, nsamples=100)
+                
+                if isinstance(shap_values_all, list):
+                    shap_values = shap_values_all[prediction][0]
+                else:
+                    shap_values = shap_values_all[0, :, prediction]
+                
+                base_value = explainer.expected_value[prediction]
+
+            if len(shap_values) != len(expected_features):
+                corrected_shap = np.zeros(len(expected_features))
+                min_length = min(len(shap_values), len(expected_features))
+                corrected_shap[:min_length] = shap_values[:min_length]
+                shap_values = corrected_shap
+            
+            contrib_df = pd.DataFrame({
+                "Feature": expected_features,
+                "SHAP Value": shap_values
+            })
+            contrib_df["Efeito"] = np.where(contrib_df["SHAP Value"] > 0, "Aumenta 📈", "Diminui 📉")
+            contrib_df["abs_shap"] = np.abs(contrib_df["SHAP Value"])
+            contrib_df = contrib_df.sort_values("abs_shap", ascending=False).head(15)
+            
+            fig_shap = px.bar(
+                contrib_df.sort_values("abs_shap", ascending=True),
+                x="SHAP Value", y="Feature", color="Efeito",
+                color_discrete_map={"Aumenta 📈": "#2ca02c", "Diminui 📉": "#d62728"},
+                title="Principais Features que Influenciaram a Predição",
+                labels={"SHAP Value": "Contribuição SHAP para a Popularidade"},
+                orientation="h"
+            )
+            fig_shap.update_layout(height=500, yaxis_title=None)
+            
+            st.info(f"""**Como interpretar:** O gráfico mostra o quanto cada característica "empurrou" a previsão final a partir de uma previsão base ({base_value:.3f}).
+            Características em verde aumentaram a chance da música ser popular, e as em vermelho diminuíram.""")
+            st.plotly_chart(fig_shap, use_container_width=True)
+
     except Exception as e:
-        st.error(f"Ocorreu um erro ao gerar o gráfico SHAP: {e}")
+        st.error(f"Ocorreu um erro durante a predição ou explicação: {e}")
+        st.exception(e)
+        st.error("Verifique se os inputs do modelo estão corretos e se o modelo carregado é válido.")
