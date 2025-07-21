@@ -1,21 +1,19 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import numpy as np
 
 st.set_page_config(page_title="Classificação", layout="wide")
 st.title("📈 Classificação")
 
 @st.cache_data
 def load_data():
-    return pd.read_csv("datasets/spotify_processed.csv", encoding='utf-8', low_memory=True)
-
+    return pd.read_csv("datasets_paralelos/spotify_limpo.csv", encoding='utf-8', low_memory=True)
 try:
     df = load_data()
+    if 'is_popular' not in df.columns:
+        df['is_popular'] = df['popularity'].apply(lambda x: 1 if x >= 70 else 0)
 except FileNotFoundError:
-    st.error("❌ Arquivo 'spotify_processed.csv' não encontrado na pasta 'datasets'")
+    st.error("❌ Arquivo 'spotify_limpo.csv' não encontrado na pasta 'datasets_paralelos'")
     st.stop()
 
 st.sidebar.header("🎛 Filtros avançados")
@@ -66,24 +64,6 @@ acousticness_range = st.sidebar.slider(
     step=0.1
 )
 
-duration_range = st.sidebar.slider(
-    "Duração (normalizada):",
-    min_value=float(df['duration_ms'].min()),
-    max_value=float(df['duration_ms'].max()),
-    value=(float(df['duration_ms'].min()), float(df['duration_ms'].max())),
-    step=0.1
-)
-
-st.sidebar.subheader("Características categóricas")
-
-key_columns = [col for col in df.columns if col.startswith('key_')]
-selected_keys = st.sidebar.multiselect(
-    "Tonalidades:",
-    key_columns,
-    default=key_columns[:3],
-    format_func=lambda x: f"Key {x.split('_')[1]}"
-)
-
 df_filtrado = df.copy()
 
 if popularidade_filter == "Populares":
@@ -115,15 +95,6 @@ df_filtrado = df_filtrado[
     (df_filtrado['acousticness'] >= acousticness_range[0]) & 
     (df_filtrado['acousticness'] <= acousticness_range[1])
 ]
-
-df_filtrado = df_filtrado[
-    (df_filtrado['duration_ms'] >= duration_range[0]) & 
-    (df_filtrado['duration_ms'] <= duration_range[1])
-]
-
-if selected_keys:
-    key_filter = df_filtrado[selected_keys].sum(axis=1) > 0
-    df_filtrado = df_filtrado[key_filter]
 
 total_musicas = len(df_filtrado)
 pct_total = total_musicas/len(df)*100
