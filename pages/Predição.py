@@ -255,7 +255,65 @@ if st.button("🚀 Fazer predição", type="primary"):
                 Características em verde aumentaram a chance da música ser popular, e as em vermelho diminuíram."""
             )
             st.plotly_chart(fig_shap, use_container_width=True)
-            
+
+        st.subheader("Cascata SHAP (Waterfall Plot)")
+        st.info(
+            """**Como interpretar:** O gráfico de cascata mostra como cada característica contribui para a previsão final, começando da previsão base e adicionando ou subtraindo o impacto de cada característica até chegar à previsão da música."""
+        )
+
+        contrib_df = contrib_df.sort_values("abs_shap", ascending=False).head(15)
+        contrib_df = contrib_df[::-1]
+
+        measure = ["relative"] * len(contrib_df)
+        x = contrib_df["Feature"].tolist()
+        y = contrib_df["SHAP Value"].tolist()
+        text = [f"{v:+.3f}" for v in y]
+
+        fig_waterfall = go.Figure(go.Waterfall(
+            name="SHAP",
+            orientation="v",
+            measure=measure,
+            x=x,
+            text=text,
+            textposition="outside",
+            y=y,
+            connector={"line": {"color": "rgb(63, 63, 63)"}},
+            decreasing={"marker": {"color": "#d62728"}},
+            increasing={"marker": {"color": "#2ca02c"}}
+        ))
+
+        fig_waterfall.update_layout(
+            title="Impacto das Features na Predição (SHAP Waterfall)",
+            yaxis_title="Contribuição SHAP",
+            xaxis_title="Features",
+            showlegend=False,
+            height=600
+        )
+
+        st.plotly_chart(fig_waterfall, use_container_width=True)
+
+        st.subheader("Mapa de Calor das Contribuições SHAP")
+
+        heatmap_df = contrib_df.sort_values("abs_shap", ascending=True).set_index("Feature")[["SHAP Value"]]
+
+        fig_heatmap = go.Figure(data=go.Heatmap(
+            z=heatmap_df["SHAP Value"].values.reshape(-1, 1),
+            y=heatmap_df.index.tolist(),
+            x=["Contribuição SHAP"],
+            colorscale=[[0, "red"], [0.5, "white"], [1, "green"]],
+            colorbar=dict(title="Valor SHAP"),
+            zmid=0
+        ))
+
+        fig_heatmap.update_layout(
+            height=400,
+            yaxis=dict(autorange="reversed"),
+            xaxis_title="",
+            yaxis_title="Feature",
+        )
+
+        st.plotly_chart(fig_heatmap, use_container_width=True)
+
     except Exception as e:
         st.error(f"Ocorreu um erro durante a predição ou explicação: {e}")
         st.exception(e)
