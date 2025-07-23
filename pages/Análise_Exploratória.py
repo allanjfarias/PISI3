@@ -1,22 +1,19 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import numpy as np
 
 st.set_page_config(page_title="Análise Exploratória", layout="wide")
 st.title("🎵 Análise Exploratória de Dados (EDA)")
 
 @st.cache_data
 def load_data():
-    return pd.read_csv("datasets/spotify_processed.csv", encoding='utf-8', low_memory=True)
-
+    return pd.read_csv("datasets_paralelos/spotify_limpo.csv", encoding='utf-8', low_memory=True)
 try:
     df = load_data()
-    st.success(f"✅ Dataset carregado com sucesso: {df.shape[0]:,} músicas e {df.shape[1]} características")
+    if 'is_popular' not in df.columns:
+        df['is_popular'] = df['popularity'].apply(lambda x: 1 if x >= 70 else 0)
 except FileNotFoundError:
-    st.error("❌ Arquivo 'spotify_processed.csv' não encontrado na pasta 'datasets'")
+    st.error("❌ Arquivo 'spotify_limpo.csv' não encontrado na pasta 'datasets_paralelos'")
     st.stop()
 
 st.sidebar.header("🎛️ Filtros globais")
@@ -57,14 +54,6 @@ acousticness_range = st.sidebar.slider(
     min_value=float(df['acousticness'].min()),
     max_value=float(df['acousticness'].max()),
     value=(float(df['acousticness'].min()), float(df['acousticness'].max())),
-    step=0.1
-)
-
-duration_range = st.sidebar.slider(
-    "Duração (normalizada):",
-    min_value=float(df['duration_ms'].min()),
-    max_value=float(df['duration_ms'].max()),
-    value=(float(df['duration_ms'].min()), float(df['duration_ms'].max())),
     step=0.1
 )
 
@@ -115,11 +104,6 @@ df_filtrado = df_filtrado[
     (df_filtrado['acousticness'] <= acousticness_range[1])
 ]
 
-df_filtrado = df_filtrado[
-    (df_filtrado['duration_ms'] >= duration_range[0]) & 
-    (df_filtrado['duration_ms'] <= duration_range[1])
-]
-
 if selected_keys:
     key_filter = df_filtrado[selected_keys].sum(axis=1) > 0
     df_filtrado = df_filtrado[key_filter]
@@ -142,7 +126,7 @@ with col4:
 
 st.header("2. Análise de popularidade")
 
-pop_counts = df_filtrado['is_popular'].value_counts()
+pop_counts = df_filtrado['is_popular'].value_counts().reindex([0, 1], fill_value=0)
 fig_pop = px.pie(
     values=pop_counts.values,
     names=['Não popular', 'Popular'],
@@ -212,7 +196,7 @@ st.plotly_chart(fig_box, use_container_width=True)
 st.header("🔍 4. Correlações")
 
 caracteristicas_numericas = ['danceability', 'energy', 'valence', 'acousticness', 
-                           'instrumentalness', 'liveness', 'speechiness', 'loudness', 'tempo', 'duration_ms']
+                           'instrumentalness', 'liveness', 'speechiness', 'loudness', 'tempo']
 
 caracteristicas_existentes = [col for col in caracteristicas_numericas if col in df_filtrado.columns]
 
