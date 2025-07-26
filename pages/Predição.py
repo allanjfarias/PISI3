@@ -9,6 +9,17 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="Previsão", layout="wide")
 st.title("🤖 Previsão de popularidade")
 
+cluster_descriptions = {
+    0: "Caracterizadas por alta `acousticness` e baixa `energy`. Geralmente são baladas, faixas de folk ou instrumentais suaves.",
+    1: "Alta `danceability`, `energy` e `loudness`. Músicas eletrônicas, pop e funk que são feitas para dançar.",
+    2: "Níveis moderados a altos de `energy` e `loudness`, mas com instrumentação mais orgânica. Pode incluir guitarras e baterias proeminentes.",
+    3: "Músicas com alta `valence` (positividade), `danceability` e `energy`. Típicas de rádio, com refrões cativantes e uma vibe feliz.",
+    4: "Caracterizadas por alta `instrumentalness` e, muitas vezes, `speechiness` baixa. Podem ter estruturas não convencionais e `tempo` variado.",
+    5: "Alta `speechiness` e batidas rítmicas fortes (alta `danceability`). A `energy` pode variar de faixas mais lentas e reflexivas a outras mais agressivas.",
+    6: "Alta `liveness`, indicando que a música foi provavelmente gravada em um show. Pode ter mais ruído de fundo e uma sensação menos polida."
+}
+
+
 @st.cache_resource
 def load_models():
     models = {}
@@ -41,8 +52,11 @@ if models is None or example_data is None:
 st.success("✅ Modelos e dados carregados com sucesso!")
 
 st.sidebar.header("⚙️ Seleção de Modelo")
-model_name = st.sidebar.selectbox("Escolha o modelo para a predição:", list(models.keys()))
-model = models[model_name]
+model_name = st.sidebar.selectbox("Escolha o modelo para a predição:", ["SVM (melhor modelo)", "Random Forest", "XGBoost", "KNN"])
+if model_name == "SVM (melhor modelo)":
+    model = models["SVM"]
+else:
+    model = models[model_name]
 
 try:
     expected_features = model.feature_names_in_
@@ -57,7 +71,7 @@ except AttributeError:
 with st.expander("ℹ️ Informações do modelo"):
     st.write(f"**Tipo de modelo:** {model_name}")
     st.write(f"**Número de características esperadas pelo modelo:** {len(expected_features)}")
-    st.write("**Classes de predição:** Não Popular, Popular")
+    st.write("**Classes de predição:** Cluster 0 a 6")
     st.write("**Features esperadas:**")
     st.code(f"{list(expected_features)}", language="python")
 
@@ -166,17 +180,23 @@ if st.button("🚀 Fazer predição", type="primary"):
         col1_res, col2_res = st.columns(2)
 
         with col1_res:
-            if prediction == 1:
-                st.success("🎉 **POPULAR** - Esta música tem potencial para ser popular!")
-            else:
-                st.info("📉 **NÃO POPULAR** - Esta música provavelmente não será muito popular.")
+            st.success(f"🎉 **CLUSTER {prediction}** - Esta música pertence ao Cluster {prediction}!")
             st.metric("Confiança da Predição (Classe Predita)", f"{max(prediction_proba):.1%}")
+        
+        with col2_res:
+            st.subheader(f"📖 Sobre o Cluster {prediction}")
+            description = cluster_descriptions.get(prediction, "Descrição não encontrada para este cluster.")
+            st.info(f"**Características Principais:** {description}")
 
+        st.write("---")
         st.subheader(f"🔍 Explicação da Predição com SHAP ({model_name})")
 
         spinner_message = f"Calculando valores SHAP para {model_name}..."
-        if model_name in ["KNN", "SVM"]:
+        if model_name in ["KNN", "SVM (melhor modelo)"]:
             spinner_message += " Isso pode levar alguns segundos."
+
+        shap_values = None
+        base_value = None
 
         with st.spinner(spinner_message):
             if hasattr(model, 'steps'):
@@ -212,7 +232,7 @@ if st.button("🚀 Fazer predição", type="primary"):
                 else:
                     base_value = explainer.expected_value
 
-            elif model_name in ["SVM", "KNN"]:
+            elif model_name in ["SVM (melhor modelo)", "KNN"]:
                 X_train_summary = shap.kmeans(example_data[expected_features].values, 25)
                 explainer = shap.KernelExplainer(predict_proba_wrapper, X_train_summary)
                 shap_values_all = explainer.shap_values(input_df.values, nsamples=100)
@@ -224,6 +244,7 @@ if st.button("🚀 Fazer predição", type="primary"):
 
                 base_value = explainer.expected_value[prediction]
 
+        if shap_values is not None and base_value is not None:
             if len(shap_values) != len(expected_features):
                 corrected_shap = np.zeros(len(expected_features))
                 min_length = min(len(shap_values), len(expected_features))
@@ -252,67 +273,86 @@ if st.button("🚀 Fazer predição", type="primary"):
 
             st.info(
                 f"""**Como interpretar:** O gráfico mostra o quanto cada característica "empurrou" a previsão final a partir de uma previsão base ({base_value:.3f}).
-                Características em verde aumentaram a chance da música ser popular, e as em vermelho diminuíram."""
+                Características em verde aumentaram a chance da música pertencer ao cluster predito, e as em vermelho diminuíram."""
             )
             st.plotly_chart(fig_shap, use_container_width=True)
 
-        st.subheader("Cascata SHAP (Waterfall Plot)")
-        st.info(
-            """**Como interpretar:** O gráfico de cascata mostra como cada característica contribui para a previsão final, começando da previsão base e adicionando ou subtraindo o impacto de cada característica até chegar à previsão da música."""
-        )
+            st.subheader("Cascata SHAP (Waterfall Plot)")
+            st.info(
+                """**Como interpretar:** O gráfico de cascata mostra como cada característica contribui para a previsão final, começando da previsão base e adicionando ou subtraindo o impacto de cada característica até chegar à previsão da música."""
+            )
 
-        contrib_df = contrib_df.sort_values("abs_shap", ascending=False).head(15)
-        contrib_df = contrib_df[::-1]
+            waterfall_df = contrib_df.sort_values("abs_shap", ascending=False)
 
-        measure = ["relative"] * len(contrib_df)
-        x = contrib_df["Feature"].tolist()
-        y = contrib_df["SHAP Value"].tolist()
-        text = [f"{v:+.3f}" for v in y]
+            measure = ["relative"] * len(waterfall_df)
+            x_vals = waterfall_df["Feature"].tolist()
+            y_vals = waterfall_df["SHAP Value"].tolist()
+            
+            x_data = ["Previsão Base"] + x_vals + ["Previsão Final"]
+            y_data = [0] + y_vals + [sum(y_vals)]
+            measure_data = ["absolute"] + measure + ["total"]
+            text = [f"{base_value:+.3f}"] + [f"{v:+.3f}" for v in y_vals] + [f"{base_value + sum(y_vals):+.3f}"]
 
-        fig_waterfall = go.Figure(go.Waterfall(
-            name="SHAP",
-            orientation="v",
-            measure=measure,
-            x=x,
-            text=text,
-            textposition="outside",
-            y=y,
-            connector={"line": {"color": "rgb(63, 63, 63)"}},
-            decreasing={"marker": {"color": "#d62728"}},
-            increasing={"marker": {"color": "#2ca02c"}}
-        ))
+            fig_waterfall = go.Figure(go.Waterfall(
+                name="SHAP",
+                orientation="v",
+                measure=measure_data,
+                x=x_data,
+                text=text,
+                textposition="outside",
+                y=y_data,
+                base=base_value,
+                connector={"line": {"color": "rgb(63, 63, 63)"}},
+                decreasing={"marker": {"color": "#d62728"}},
+                increasing={"marker": {"color": "#2ca02c"}}
+            ))
 
-        fig_waterfall.update_layout(
-            title="Impacto das Features na Predição (SHAP Waterfall)",
-            yaxis_title="Contribuição SHAP",
-            xaxis_title="Features",
-            showlegend=False,
-            height=600
-        )
+            fig_waterfall.update_layout(
+                title="Impacto das Features na Predição (SHAP Waterfall)",
+                yaxis_title="Valor de Saída do Modelo",
+                xaxis_title="Features",
+                showlegend=False,
+                height=600
+            )
 
-        st.plotly_chart(fig_waterfall, use_container_width=True)
+            st.plotly_chart(fig_waterfall, use_container_width=True)
 
-        st.subheader("Mapa de Calor das Contribuições SHAP")
+            st.subheader("Mapa de calor das contribuições SHAP")
+            
+            st.info(
+                """
+                **Como interpretar:** O mapa de calor oferece uma visão rápida e colorida do impacto de cada feature.
 
-        heatmap_df = contrib_df.sort_values("abs_shap", ascending=True).set_index("Feature")[["SHAP Value"]]
+                - **Verde:** A característica teve uma contribuição positiva, aumentando a probabilidade da predição para o cluster atual.
+                - **Branco:** A característica teve um impacto próximo de zero, ou seja, não influenciou significativamente a predição.
+                - **Vermelho:** A característica teve uma contribuição negativa, diminuindo a probabilidade.
 
-        fig_heatmap = go.Figure(data=go.Heatmap(
-            z=heatmap_df["SHAP Value"].values.reshape(-1, 1),
-            y=heatmap_df.index.tolist(),
-            x=["Contribuição SHAP"],
-            colorscale=[[0, "red"], [0.5, "white"], [1, "green"]],
-            colorbar=dict(title="Valor SHAP"),
-            zmid=0
-        ))
+                A intensidade da cor (verde ou vermelho) representa a magnitude do impacto.
+                """
+            )
 
-        fig_heatmap.update_layout(
-            height=400,
-            yaxis=dict(autorange="reversed"),
-            xaxis_title="",
-            yaxis_title="Feature",
-        )
+            heatmap_df = contrib_df.sort_values("abs_shap", ascending=True).set_index("Feature")[["SHAP Value"]]
 
-        st.plotly_chart(fig_heatmap, use_container_width=True)
+            fig_heatmap = go.Figure(data=go.Heatmap(
+                z=heatmap_df["SHAP Value"].values.reshape(-1, 1),
+                y=heatmap_df.index.tolist(),
+                x=["Contribuição SHAP"],
+                colorscale=[[0, "red"], [0.5, "white"], [1, "green"]],
+                colorbar=dict(title="Valor SHAP"),
+                zmid=0
+            ))
+
+            fig_heatmap.update_layout(
+                height=400,
+                yaxis=dict(autorange="reversed"),
+                xaxis_title="",
+                yaxis_title="Feature",
+            )
+
+            st.plotly_chart(fig_heatmap, use_container_width=True)
+
+        else:
+            st.warning(f"Não foi possível gerar a explicação SHAP para o modelo '{model_name}'.")
 
     except Exception as e:
         st.error(f"Ocorreu um erro durante a predição ou explicação: {e}")
